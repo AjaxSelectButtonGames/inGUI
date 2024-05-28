@@ -1,14 +1,14 @@
 #include "dx_setup.h"
+#include <d3dcompiler.h>
 
 DXSetup::DXSetup()
 {
-    //Does not need anything as of 5/27/2024
+    // Constructor code
 }
 
 DXSetup::~DXSetup()
 {
-    //Does not need anything as of 5/27/2024
-
+    // Destructor code
 }
 
 std::string DXSetup::Initialize(HWND hwnd, int width, int height)
@@ -25,61 +25,114 @@ std::string DXSetup::Initialize(HWND hwnd, int width, int height)
         return "Failed to create render target view: " + error;
     }
 
-    return "";
-}
-
-
-
-std::string DXSetup::CreateDeviceAndSwapChain(HWND hwnd, int width, int height)
-{
-    DXGI_SWAP_CHAIN_DESC scd = { 0 };
-
-    scd.BufferCount = 1;
-    scd.BufferDesc.Width = width;
-    scd.BufferDesc.Height = height;
-    scd.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-    scd.BufferDesc.RefreshRate.Numerator = 60;
-    scd.BufferDesc.RefreshRate.Denominator = 1;
-    scd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-    scd.OutputWindow = hwnd;
-    scd.SampleDesc.Count = 1;
-    scd.SampleDesc.Quality = 0;
-    scd.Windowed = TRUE;
-
-    HRESULT hr = D3D11CreateDeviceAndSwapChain(
-        nullptr,
-        D3D_DRIVER_TYPE_HARDWARE,
-        nullptr,
-        0,
-        nullptr,
-        0,
-        D3D11_SDK_VERSION,
-        &scd,
-        &swapChain,
-        &device,
-        nullptr,
-        &deviceContext);
-
-    if (FAILED(hr))
+    error = CompileShaders();
+    if (!error.empty())
     {
-        return "D3D11CreateDeviceAndSwapChain failed with error: " + std::to_string(hr);
+        return "Failed to compile shaders: " + error;
+    }
+
+    error = CreateInputLayout();
+    if (!error.empty())
+    {
+        return "Failed to create input layout: " + error;
     }
 
     return "";
 }
 
-std::string DXSetup::CreateRenderTargetView()
+std::string DXSetup::CompileShaders()
 {
-    Microsoft::WRL::ComPtr<ID3D11Texture2D> backBuffer;
-    HRESULT hr = device->CreateRenderTargetView(backBuffer.Get(), nullptr, &renderTargetView);
+    const char* vertexShaderSrc = R"(
+    struct VS_INPUT {
+        float4 Pos : POSITION;
+        float4 Col : COLOR;
+    };
 
+    struct PS_INPUT {
+        float4 Pos : SV_POSITION;
+        float4 Col : COLOR;
+    };
+
+    PS_INPUT VS(VS_INPUT input) {
+        PS_INPUT output;
+        output.Pos = input.Pos;
+        output.Col = input.Col;
+        return output;
+    }
+    )";
+
+    const char* pixelShaderSrc = R"(
+    struct PS_INPUT {
+        float4 Pos : SV_POSITION;
+        float4 Col : COLOR;
+    };
+
+    float4 PS(PS_INPUT input) : SV_TARGET {
+        return input.Col;
+    }
+    )";
+
+    Microsoft::WRL::ComPtr<ID3DBlob> vertexShaderBlob;
+    Microsoft::WRL::ComPtr<ID3DBlob> pixelShaderBlob;
+    Microsoft::WRL::ComPtr<ID3DBlob> errorBlob;
+
+    HRESULT hr = D3DCompile(vertexShaderSrc, strlen(vertexShaderSrc), nullptr, nullptr, nullptr, "VS", "vs_5_0", 0, 0, &vertexShaderBlob, &errorBlob);
     if (FAILED(hr))
     {
-        return "CreateRenderTargetView failed with error: " + std::to_string(hr);
+        if (errorBlob) {
+            return std::string(reinterpret_cast<char*>(errorBlob->GetBufferPointer()));
+        }
+        return "Failed to compile vertex shader.";
     }
+
+    hr = D3DCompile(pixelShaderSrc, strlen(pixelShaderSrc), nullptr, nullptr, nullptr, "PS", "ps_5_0", 0, 0, &pixelShaderBlob, &errorBlob);
+    if (FAILED(hr))
+    {
+        if (errorBlob) {
+            return std::string(reinterpret_cast<char*>(errorBlob->GetBufferPointer()));
+        }
+        return "Failed to compile pixel shader.";
+    }
+
+    hr = device->CreateVertexShader(vertexShaderBlob->GetBufferPointer(), vertexShaderBlob->GetBufferSize(), nullptr, &vertexShader);
+    if (FAILED(hr))
+    {
+        return "Failed to create vertex shader.";
+    }
+
+    hr = device->CreatePixelShader(pixelShaderBlob->GetBufferPointer(), pixelShaderBlob->GetBufferSize(), nullptr, &pixelShader);
+    if (FAILED(hr))
+    {
+        return "Failed to create pixel shader.";
+    }
+
+    deviceContext->VSSetShader(vertexShader.Get(), nullptr, 0);
+    deviceContext->PSSetShader(pixelShader.Get(), nullptr, 0);
 
     return "";
 }
 
+std::string DXSetup::CreateInputLayout()
+{
+    D3D11_INPUT_ELEMENT_DESC layoutDesc[] = {
+        { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+        { "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 }
+    };
 
+    Microsoft::WRL::ComPtr<ID3DBlob> vertexShaderBlob;
+    HRESULT hr = D3DCompile(vertexShaderSrc, strlen(vertexShaderSrc), nullptr, nullptr, nullptr, "VS", "vs_5_0", 0, 0, &vertexShaderBlob, nullptr);
+    if (FAILED(hr))
+    {
+        return "Failed to compile vertex shader for input layout.";
+    }
 
+    hr = device->CreateInputLayout(layoutDesc, ARRAYSIZE(layoutDesc), vertexShaderBlob->GetBufferPointer(), vertexShaderBlob->GetBufferSize(), &inputLayout);
+    if (FAILED(hr))
+    {
+        return "Failed to create input layout.";
+    }
+
+    deviceContext->IASetInputLayout(inputLayout.Get());
+
+    return "";
+}

@@ -35,5 +35,8 @@
     <ClCompile Include="dx_setup.cpp">
       <Filter>Source Files\DIRECTX</Filter>
     </ClCompile>
+    <ClCompile Include="Main.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>

@@ -8,26 +8,39 @@
 #include <memory>
 #include <tuple>
 #include <stdexcept>
-
+#include <iostream>
 namespace INGUI
 {
+    struct Vertex {
+        float x, y, z;    // Position
+        float r, g, b, a; // Color
+    };
+    struct Color {
+        float r, g, b;
+    };
     class Renderer
     {
     public:
         virtual ~Renderer() = default;
-        virtual void DrawButton(float x, float y, size_t width, size_t height) = 0;
+        virtual void DrawButton(float x, float y, size_t width, size_t height, const Color& color) = 0;
     };
 
     class DirectXRenderer : public Renderer
     {
     public:
         DirectXRenderer(Microsoft::WRL::ComPtr<ID3D11DeviceContext> deviceContext)
-            : deviceContext(deviceContext) {}
+            : deviceContext(deviceContext)
+        {
+            InitializeDirectXResources();
+        }
 
-        void DrawButton(float x, float y, size_t width, size_t height) override;
+        void DrawButton(float x, float y, size_t width, size_t height, const Color& color) override;
 
     private:
+        void InitializeDirectXResources();
+
         Microsoft::WRL::ComPtr<ID3D11DeviceContext> deviceContext;
+        // Add other DirectX resources here...
     };
     class InputHandler
     {
@@ -45,13 +58,13 @@ namespace INGUI
         std::pair<float, float> GetMousePosition() const override;
         bool IsMouseButtonDown() const override;
     };
-
+    /**
     class LinuxInputHandler : public InputHandler
     {
     public:
         std::pair<float, float> GetMousePosition() const override;
         bool IsMouseButtonDown() const override;
-    };
+    };**/
     class GUI
     {
     public:
@@ -60,7 +73,11 @@ namespace INGUI
         GUI(std::unique_ptr<Renderer> renderer, std::unique_ptr<InputHandler> inputHandler)
             : renderer(std::move(renderer)), inputHandler(std::move(inputHandler)),
             MOUSE_LBUTTON_DOWN(false), MOUSE_LBUTTON_UP(false),
-            MOUSE_RBUTTON_DOWN(false), MOUSE_RBUTTON_UP(false) {}
+            MOUSE_RBUTTON_DOWN(false), MOUSE_RBUTTON_UP(false)
+        {
+            // Initialize mouse_pos with 2 elements
+            mouse_pos.resize(2);
+        }
 
 
         std::vector<float> mouse_pos; //mouse posistion on the screen
