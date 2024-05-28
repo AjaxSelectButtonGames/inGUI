@@ -6,6 +6,8 @@
 #include <d3d11.h> // For ID3D11DeviceContext
 #include <string>
 #include <memory>
+#include <tuple>
+#include <stdexcept>
 
 namespace INGUI
 {
@@ -27,13 +29,39 @@ namespace INGUI
     private:
         Microsoft::WRL::ComPtr<ID3D11DeviceContext> deviceContext;
     };
+    class InputHandler
+    {
+    public:
+        virtual ~InputHandler() = default;
 
+        virtual std::pair<float, float> GetMousePosition() const = 0;
+        virtual bool IsMouseButtonDown() const = 0;
+        // Add other input methods as needed...
+    };
+
+    class WindowsInputHandler : public InputHandler
+    {
+    public:
+        std::pair<float, float> GetMousePosition() const override;
+        bool IsMouseButtonDown() const override;
+    };
+
+    class LinuxInputHandler : public InputHandler
+    {
+    public:
+        std::pair<float, float> GetMousePosition() const override;
+        bool IsMouseButtonDown() const override;
+    };
     class GUI
     {
     public:
         using Id = std::string;
 
-        GUI(std::unique_ptr<Renderer> renderer) : renderer(std::move(renderer)) {}
+        GUI(std::unique_ptr<Renderer> renderer, std::unique_ptr<InputHandler> inputHandler)
+            : renderer(std::move(renderer)), inputHandler(std::move(inputHandler)),
+            MOUSE_LBUTTON_DOWN(false), MOUSE_LBUTTON_UP(false),
+            MOUSE_RBUTTON_DOWN(false), MOUSE_RBUTTON_UP(false) {}
+
 
         std::vector<float> mouse_pos; //mouse posistion on the screen
         bool MOUSE_LBUTTON_DOWN; //Left mouse button pressed
@@ -48,6 +76,7 @@ namespace INGUI
 
     private:
         std::unique_ptr<Renderer> renderer;
+        std::unique_ptr<InputHandler> inputHandler;
     };
 }
 #endif // !GUI_H
